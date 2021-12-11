@@ -2,11 +2,8 @@
 #### imports
 from dataclasses import dataclass
 from enum import Enum
-from typing import ValuesView
 
 import numpy as np
-from numpy import ones
-from numpy.core.fromnumeric import cumsum
 from numpy.random import randint, uniform, normal, choice
     
 
@@ -19,7 +16,8 @@ operators = {
     "sum": lambda x,y : x+y,
     "sub": lambda x,y: x-y,
     "mul": lambda x,y: x*y,
-    "div": lambda x,y: x^y,
+    "div": lambda x,y: x/y if y != 0 else np.inf,
+    "pow": lambda x,y: x**y,
     "sin": np.sin,
     "cos": np.cos,
     "id": lambda x: x
@@ -42,19 +40,27 @@ class ValType(Enum):
 #### methods
 
 def get_operator_type(op):
-    if op in ["sum", "sub", "mul", "div"]:
+    if op in ["sum", "sub", "mul", "div", "pow"]:
         return ValType.binary
     if op in ["sin", "cos", "id"]:
         return ValType.unary
     return None
 
-def evaluate_tree(node: Node):
+def evaluate_tree(node: Node, args = None):
     if not node:
         return 0
 
     value_type, value = node.value
     if value_type == ValType.const:
         return value
+
+    if value_type == ValType.var:
+        if args is None:
+            return 0
+        return args[value]
+
+    # convert to proper operator name
+    value = list(operators.keys())[int(value)]
 
     left = evaluate_tree(node.left)
     if value_type == ValType.unary:
@@ -65,8 +71,7 @@ def evaluate_tree(node: Node):
         return operators[value](left, right)
     
     # or else, error
-    print("invalid value type!")
-
+    print("invalid operator type!")
 
 
 # %%
@@ -153,7 +158,7 @@ def create_trees(n_trees, max_tree_size, max_leaf_value):
 # %%
 #### debugging tools
 
-def tree_to_expression(node: Node):
+def tree_to_expression(node: Node, use_common_var_names = True, limit_floating_point = True):
     if node is None:
         return "0"
 
@@ -161,10 +166,23 @@ def tree_to_expression(node: Node):
     if val_type == ValType.const:
         if not value:
             return "0"
+        if limit_floating_point and isinstance(value, float):
+            return "%.2f" % value
         return str(value)
 
     if val_type == ValType.var:
-        return "x"+ str(int(value))
+        if not use_common_var_names:
+            return "x"+ str(int(value))
+        
+        i = int(value)
+        if i < 13:
+            return ['x','y','z', 'w', 't', 'u', 'v', 'm', 'n', 'p', 'q', 'r', 's'][i]
+        
+        if i < 26:
+            return chr(97+i-13)
+
+        return "x"+ str(i)
+        
 
     # fetch name of operator
     value = str(list(operators.keys())[int(value)])
@@ -177,6 +195,8 @@ def tree_to_expression(node: Node):
             value + "(" + tree_to_expression(node.left) + ", "
             + tree_to_expression(node.right) + ")"
         )
+
+    print("Unknown value type: " + str(val_type))
         
 
 
@@ -185,6 +205,9 @@ def tree_to_expression(node: Node):
 trees = create_trees(10, 3, 10)
 for t in trees:
     print(tree_to_expression(t))
+    x = evaluate_tree(t, [1,1,1,1,1])
+    print("%.2f" % x)
+    print()
 
 
 
