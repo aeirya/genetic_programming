@@ -2,6 +2,7 @@
 #### imports
 from dataclasses import dataclass
 from enum import Enum
+from os import error
 
 import numpy as np
 from numpy.random import randint, random, uniform, normal, choice
@@ -65,10 +66,12 @@ def evaluate_tree(node: Node, args = None):
     value = list(operators.keys())[int(value)]
 
     left = evaluate_tree(node.left)
+    print("left is " + str(left))
     if value_type == ValType.unary:
         return operators[value](left)
 
     right = evaluate_tree(node.right)
+    print("right is " + str(right))
     if value_type == ValType.binary:
         return operators[value](left, right)
     
@@ -201,11 +204,6 @@ def tree_to_expression(node: Node, use_common_var_names = True, limit_floating_p
     print("Unknown value type: " + str(val_type))
 
 
-# %%
-
-def simulate_one_round(population, ):
-    trees = create_trees(population, max_tree_size, max_leaf_value)
-    scores = evaluate_tree()
 
 # %%
 ### DATA GENERATION
@@ -228,7 +226,8 @@ def generate_points(f, dsize, interval= (-100,100)):
 
 ### PERFORMANCE EVALUATION
 
-def split_data(x,y, train_ratio):
+def split_data(data, train_ratio):
+    x,y = data
     n = int(train_ratio * len(x))
     train_x, train_y, score_x, score_y = x[:n], y[:n], x[n:], y[n:]
     return train_x, train_y, score_x, score_y
@@ -326,6 +325,33 @@ def mutate(n: Node, p):
     n.value = typ, val
     return True
 
+# %%
+def choose_best(trees, data, p_survival):
+    x, y = data
+    values = np.array([evaluate_tree(t, [x[i]]) for i,t in enumerate(trees)])
+    errors = np.abs(values - y)
+
+    p_elitism = 1-errors/ max(errors[errors < np.inf])
+    p_elitism[errors == np.inf] = 0
+    p_elitism[np.isnan(p_elitism)] = 0
+    p_elitism= p_elitism/sum(p_elitism)
+    n = int(p_survival * len(trees))
+    return np.random.choice(trees, n, p = p_elitism)
+
+# TODO
+def simulate_one_round(trees, data):
+    mutated = choice(trees, int(0.3*len(trees)))
+    
+    best = choose_best(trees, data, 0.4)
+    born = np.array([replicate(t) for t in best])
+    n_coupled = randint(int(len(best)//2))
+    to_crossover = choice(2*n_coupled)
+    for i in range(to_crossover):
+        crossover(best[2*i], best[2*i+1])
+    for t in mutated:
+        mutate(mutated, 0.3)
+    
+    return np.hstack([best, new, mutated])
 
 # %%
 # x,y = generate_points(lambda x : x*2, 10)
@@ -359,10 +385,20 @@ def crossover_test():
     crossover(t,u, 0.5)
     print(tree_to_expression(t), "\n", tree_to_expression(u))
 
-crossover_test()
-
 
 # %%
+population = 40
+trees = create_trees(population, max_tree_size, max_leaf_value)
+data = generate_points(lambda x: 2*x + 3, 40)
+for day in range(100):
+    print(f"day {day}")
+    trees = simulate_one_round(trees, data)
+    print(tree_to_expression(trees[0]))
+    print()
+
+print("finished")
+for t in trees[:10]:
+    print(tree_to_expression(t))
 
 # %%
 
